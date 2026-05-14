@@ -4,7 +4,9 @@ const userSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      trim: true
+      required: true,
+      trim: true,
+      minlength: 2
     },
     email: {
       type: String,
@@ -15,7 +17,8 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true
+      required: true,
+      select: false
     },
     role: {
       type: String,
@@ -25,9 +28,26 @@ const userSchema = new mongoose.Schema(
     blocked: {
       type: Boolean,
       default: false
+    },
+    avatar: {
+      type: String,
+      default: ""
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: {
+      transform(doc, ret) {
+        delete ret.password;
+        delete ret.__v;
+        return ret;
+      }
+    }
+  }
 );
 
 export default mongoose.model("User", userSchema);

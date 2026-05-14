@@ -4,14 +4,17 @@ const access = (user) =>
   jwt.sign(
     { id: user._id, role: user.role },
     process.env.JWT_SECRET,
-    { expiresIn: "15m" }
+    { expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m" }
   );
 
 const refresh = (user) =>
   jwt.sign(
     { id: user._id, role: user.role },
     process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d" }
   );
 
-export default { access, refresh };
+const verifyRefresh = (refreshToken) =>
+  jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+
+export default { access, refresh, verifyRefresh };

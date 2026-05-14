@@ -2,87 +2,165 @@ import bcrypt from "bcryptjs";
 import User from "../models/userModel.js";
 import Session from "../models/sessionModel.js";
 import token from "../Utils/Token.js";
+import asyncHandler from "../middleware/asyncHandler.js";
 
-export const register=async(req,res)=>{
- const hash=await bcrypt.hash(req.body.password,10);
-
- const user=await User.create({
-  ...req.body,
-  password:hash
- });
-
- res.json({
-  access:token.access(user),
-  refresh:token.refresh(user)
- });
+const refreshExpiryDate = () => {
+  const days = Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 7);
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 };
 
-export const login=async(req,res)=>{
- const user=await User.findOne({email:req.body.email});
+const sendTokens = async (user, req, res, statusCode = 200) => {
+  const accessToken = token.access(user);
+  const refreshToken = token.refresh(user);
 
- const match=await bcrypt.compare(
-   req.body.password,
-   user.password
- );
+  await Session.create({
+    userId: user._id,
+    refreshToken,
+    userAgent: req.headers["user-agent"] || "",
+    ip: req.ip || "",
+    expiresAt: refreshExpiryDate()
+  });
 
- if(!match) return res.status(400).json({msg:"Invalid"});
-
- const refresh=token.refresh(user);
-
- await Session.create({
-   userId:user._id,
-   refreshToken:refresh
- });
-
- res.json({
-   access:token.access(user),
-   refresh
- });
+  res.status(statusCode).json({
+    success: true,
+    access: accessToken,
+    refresh: refreshToken
+  });
 };
 
-export const logout=async(req,res)=>{
- await Session.deleteMany({userId:req.user.id});
- res.json({msg:"Logged out"});
-};
+export const register = asyncHandler(async (req, res) => {
+  const existingUser = await User.findOne({ email: req.body.email });
 
-export const me=async(req,res)=>{
- const user=await User.findById(req.user.id);
- res.json(user);
-};
+  if (existingUser) {
+    return res.status(409).json({ success: false, message: "Email already exists" });
+  }
 
-export const changePassword=async(req,res)=>{
- const user=await User.findById(req.user.id);
+  const hash = await bcrypt.hash(req.body.password, 10);
+  const user = await User.create({
+    name: req.body.name,
+    email: req.body.email,
+    password: hash
+  });
 
- user.password=await bcrypt.hash(req.body.password,10);
+  await sendTokens(user, req, res, 201);
+});
 
- await user.save();
+export const login = asyncHandler(async (req, res) => {
+  const user = await User.findOne({ email: req.body.email }).select("+password");
 
- res.json({msg:"Password Updated"});
-};
+  if (!user) {
+    return res.status(400).json({ success: false, message: "Invalid email or password" });
+  }
 
+  if (user.blocked) {
+    return res.status(403).json({ success: false, message: "Your account is blocked" });
+  }
 
+  const match = await bcrypt.compare(req.body.password, user.password);
 
-export const refreshToken = async(req,res)=>{
- res.json({msg:"Token refreshed"});
-};
+  if (!match) {
+    return res.status(400).json({ success: false, message: "Invalid email or password" });
+  }
 
-export const forgotPassword = async(req,res)=>{
- res.json({msg:"Reset link sent"});
-};
+  await sendTokens(user, req, res);
+});
 
-export const resetPassword = async(req,res)=>{
- res.json({msg:"Password reset"});
-};
+export const refreshToken = asyncHandler(async (req, res) => {
+  const refreshTokenValue = req.body.refreshToken;
 
-export const verifyEmail = async(req,res)=>{
- res.json({msg:"Email verified"});
-};
+  if (!refreshTokenValue) {
+    return res.status(400).json({ success: false, message: "Refresh token is required" });
+  }
 
-export const resendVerification = async(req,res)=>{
- res.json({msg:"Verification sent"});
-};
+  const decoded = token.verifyRefresh(refreshTokenValue);
+  const session = await Session.findOne({
+    userId: decoded.id,
+    refreshToken: refreshTokenValue,
+    revokedAt: null,
+    expiresAt: { $gt: new Date() }
+  });
 
-export const logoutAll = async(req,res)=>{
- await Session.deleteMany({userId:req.user.id});
- res.json({msg:"All sessions removed"});
-};
+  if (!session) {
+    return res.status(401).json({ success: false, message: "Invalid refresh token" });
+  }
+
+  const user = await User.findById(decoded.id);
+
+  if (!user || user.blocked) {
+    return res.status(401).json({ success: false, message: "User not allowed" });
+  }
+
+  res.json({
+    success: true,
+    access: token.access(user)
+  });
+});
+
+export const logout = asyncHandler(async (req, res) => {
+  const refreshTokenValue = req.body.refreshToken;
+
+  if (refreshTokenValue) {
+    await Session.findOneAndUpdate(
+      { userId: req.user.id, refreshToken: refreshTokenValue },
+      { revokedAt: new Date() }
+    );
+  }
+
+  res.json({ success: true, message: "Logged out" });
+});
+
+export const logoutAll = asyncHandler(async (req, res) => {
+  await Session.updateMany(
+    { userId: req.user.id, revokedAt: null },
+    { revokedAt: new Date() }
+  );
+
+  res.json({ success: true, message: "All sessions removed" });
+});
+
+export const me = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select("-password");
+
+  res.json({ success: true, data: user });
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select("+password");
+
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
+
+  user.password = await bcrypt.hash(req.body.password, 10);
+  await user.save();
+
+  res.json({ success: true, message: "Password updated" });
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    message: "If the email exists, password reset instructions will be sent"
+  });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    message: "Password reset flow is ready for email token integration"
+  });
+});
+
+export const verifyEmail = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    message: "Email verification flow is ready for email token integration"
+  });
+});
+
+export const resendVerification = asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    message: "If the email exists, verification instructions will be sent"
+  });
+});
