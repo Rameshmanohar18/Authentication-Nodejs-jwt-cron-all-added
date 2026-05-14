@@ -59,3 +59,30 @@ export const changePassword=async(req,res)=>{
 
  res.json({msg:"Password Updated"});
 };
+
+
+
+export const refreshToken = async(req,res)=>{
+ res.json({msg:"Token refreshed"});
+};
+
+export const forgotPassword = async(req,res)=>{
+ res.json({msg:"Reset link sent"});
+};
+
+export const resetPassword = async(req,res)=>{
+ res.json({msg:"Password reset"});
+};
+
+export const verifyEmail = async(req,res)=>{
+ res.json({msg:"Email verified"});
+};
+
+export const resendVerification = async(req,res)=>{
+ res.json({msg:"Verification sent"});
+};
+
+export const logoutAll = async(req,res)=>{
+ await Session.deleteMany({userId:req.user.id});
+ res.json({msg:"All sessions removed"});
+};
