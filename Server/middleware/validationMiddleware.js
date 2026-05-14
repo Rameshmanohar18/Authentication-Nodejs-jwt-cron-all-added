@@ -20,6 +20,10 @@ export const roleRules = [
   body("role").isIn(["user", "admin"]).withMessage("Role must be user or admin")
 ];
 
+export const userIdBodyRules = [
+  body("id").isMongoId().withMessage("Valid user id is required")
+];
+
 export const mongoIdParam = (name = "id") => [
   param(name).isMongoId().withMessage(`Valid ${name} is required`)
 ];
