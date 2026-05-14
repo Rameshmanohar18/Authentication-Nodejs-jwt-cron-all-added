@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as c from "../controller/authController.js";
-import { deleteSession, getSessions } from "../controller/sessionCongtroller.js";
+import { deleteSession, getSessions } from "../controller/sessionController.js";
 import auth from "../middleware/authMiddleware.js";
 
 const router = Router();

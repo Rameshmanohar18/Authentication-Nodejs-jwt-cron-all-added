@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as c from "../controller/sessionCongtroller.js";
+import * as c from "../controller/sessionController.js";
 import auth from "../middleware/authMiddleware.js";
 
 const router = Router();

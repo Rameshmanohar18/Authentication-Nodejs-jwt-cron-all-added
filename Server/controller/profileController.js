@@ -1,4 +1,4 @@
-import Profile from "../models/profileMode.js";
+import Profile from "../models/profileModel.js";
 
 export const create=async(req,res)=>{
  res.json(await Profile.create({
