@@ -10,6 +10,7 @@ import profileRoutes from "./routes/profileRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
 import error from "./middleware/errorMiddleware.js";
+import limiter from "./config/rateLimit.js";
 
 connectDB();
 
@@ -30,7 +31,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/sessions", sessionRoutes);
 
-app.use(require("./config/rateLimit"));
+app.use(limiter);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
