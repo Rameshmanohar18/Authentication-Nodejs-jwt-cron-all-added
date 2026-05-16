@@ -30,9 +30,15 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/sessions", sessionRoutes);
 
+app.use(require("./config/rateLimit"));
+
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
 });
+
+app.use(require("helmet")());
+app.use(require("xss-clean")());
+app.use(require("hpp")());
 
 app.use(error);
 
